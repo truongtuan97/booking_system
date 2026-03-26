@@ -1,11 +1,12 @@
 import { Request, Response } from "express";
 import * as bookingService from "../services/booking.service";
+import { bookingQueue } from "../queues/booking.queue";
 
 export const createBooking = async (req: Request, res: Response) => {
   try {
     const { slot_id, user_id } = req.body;
-    const booking = await bookingService.createBooking(slot_id, user_id);
-    res.status(201).json(booking);
+    const job = await bookingQueue.add("book-slot", { user_id, slot_id });
+    res.status(202).json({ message: "Booking is being processed", jobId: job.id });
   } catch (error) {
     res.status(400).json({ message: (error as Error).message });
   }

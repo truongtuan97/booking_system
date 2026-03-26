@@ -1,12 +1,14 @@
 import request from "supertest";
 import { AppDataSource } from '../config/database';
 import app from "../app";
+import { redisClient } from "../config/redis";
 
 beforeAll(async () => {
   await AppDataSource.initialize();
 });
 
 afterAll(async () => {
+  await redisClient.quit();              // ← thêm dòng này
   await AppDataSource.destroy();
 });
 
