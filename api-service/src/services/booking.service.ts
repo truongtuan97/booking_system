@@ -1,9 +1,17 @@
 import { bookingRepository } from "../repositories/booking.repository";
 import { Booking } from "../entities/booking.entity";
+import { QueryFailedError  } from "typeorm";
 
 export const createBooking = async (slot_id: number, user_id: number): Promise<Booking> => {
-  const booking = bookingRepository.create({ slot_id, user_id });
-  return await bookingRepository.save(booking);
+  try {
+    const booking = bookingRepository.create({ slot_id, user_id });
+    return await bookingRepository.save(booking);  
+  } catch (error) {
+    if (error instanceof(QueryFailedError) && (error as any).code === '23505') { // PostgreSQL unique violation
+      throw new Error('Slot already booked');
+    }
+    throw error;
+  }
 };
 
 export const getBookings = async (): Promise<Booking[]> => {

@@ -1,0 +1,17 @@
+{
+  "jsc": {
+    "parser": {
+      "syntax": "typescript",    // đọc được TypeScript
+      "decorators": true,        // hiểu @Entity, @Column, @Injectable...
+      "dynamicImport": true      // hiểu import() động
+    },
+    "transform": {
+      "legacyDecorator": true,   // tương thích decorator kiểu cũ (TypeORM dùng cái này)
+      "decoratorMetadata": true  // giữ metadata cho reflect-metadata (TypeORM cần)
+    },
+    "target": "es2021"           // compile ra ES2021
+  },
+  "module": {
+    "type": "commonjs"           // output dạng require() cho Node.js
+  }
+}
