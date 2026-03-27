@@ -4,8 +4,8 @@ import { bookingQueue } from "../queues/booking.queue";
 
 export const createBooking = async (req: Request, res: Response) => {
   try {
-    const { slot_id, user_id } = req.body;
-    const job = await bookingQueue.add("book-slot", { user_id, slot_id });
+    const { slot_id, user_id, socketId } = req.body;
+    const job = await bookingQueue.add("book-slot", { user_id, slot_id, socketId });
     res.status(202).json({ message: "Booking is being processed", jobId: job.id });
   } catch (error) {
     res.status(400).json({ message: (error as Error).message });

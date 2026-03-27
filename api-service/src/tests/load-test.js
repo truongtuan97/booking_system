@@ -1,3 +1,5 @@
+//to run this file using command and start with: node api-service/src/tests/load-test.js
+
 import axios from 'axios';
 
 const TOTAL_REQUESTS = 100;

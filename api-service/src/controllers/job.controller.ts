@@ -19,6 +19,8 @@ export const getJobStatus = async (req: Request, res: Response) => {
     res.json({
       jobId,
       state,
+      result: job.returnvalue || null,
+      failedReason: job.failedReason || null,
     });
   } catch (error) {
     res.status(500).json({
