@@ -65,6 +65,8 @@ import { initRedisPubSub } from '../config/redis.pub.sub';
         }
       }
     },
-    { connection: redisQueue }
+    { connection: redisQueue,
+      concurrency: 10,
+    }
   );
 })();

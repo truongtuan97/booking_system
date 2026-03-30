@@ -1,10 +1,29 @@
 import { Request, Response } from "express";
 import * as bookingService from "../services/booking.service";
 import { bookingQueue } from "../queues/booking.queue";
+import { getItempotency, setProcessing, setResult } from "../services/idempotency.service";
 
 export const createBooking = async (req: Request, res: Response) => {
   try {
     const { slot_id, user_id, socketId } = req.body;
+    const idemKey = req.headers['idempotency-key'] as string;
+
+    if (!idemKey) {
+      return res.status(400).json({ message: "Idempotency key is required" });
+    }
+
+    const existing = await getItempotency(idemKey);
+
+    if (existing) {
+      return res.status(200).json({
+        message: "Duplicate request",
+        data: existing
+      });
+    }
+
+    // MARK proccsesing
+    await setProcessing(idemKey);
+
     const job = await bookingQueue.add("book-slot", { user_id, slot_id, socketId }, {
       attempts: 3,
       backoff: {

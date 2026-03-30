@@ -1,4 +1,7 @@
 //to run this file using command and start with: node api-service/src/tests/test-socket.js
+
+// for i in {1..20}; do node src/tests/test-socket.js & done
+// wait
 const { io } = require("socket.io-client");
 const axios = require("axios");
 
