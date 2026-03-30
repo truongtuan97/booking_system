@@ -1,6 +1,6 @@
 //to run this file using command and start with: node api-service/src/tests/load-test.js
 
-import axios from 'axios';
+const axios = require('axios');
 
 const TOTAL_REQUESTS = 100;
 const SLOT_ID = Date.now() % 100000;

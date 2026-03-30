@@ -9,15 +9,28 @@ const PORT = process.env.PORT || 3000;
 
 const server = http.createServer(app);
 
-initSocket(server);
+const startServer = async () => {
+    try {
+        // 1. DB
+        await AppDataSource.initialize();
+        console.log("✅ DB connected");
 
-AppDataSource.initialize().then(() => {
-    server.listen(PORT, () => {
-        console.log(`🚀 Server running at http://localhost:${PORT}`);
-    });
+        // 2. Redis Pub/Sub
+        await initRedisPubSub();
+        console.log("✅ Redis Pub/Sub ready");
 
-    initRedisPubSub(); // 🔥 QUAN TRỌNG
-}).catch((error) => {
-    console.error("Failed to connect to database:", error);
-    process.exit(1);
-});
+        // 3. Socket
+        initSocket(server);
+        console.log("✅ Socket.IO ready");
+
+        // 4. Start server
+        server.listen(PORT, () => {
+            console.log(`🚀 Server running at http://localhost:${PORT}`);
+        });
+    } catch (error) {
+        console.error("❌ Failed to start server:", error);
+        process.exit(1);
+    }
+};
+
+startServer();
