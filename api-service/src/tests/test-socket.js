@@ -4,9 +4,10 @@
 // wait
 const { io } = require("socket.io-client");
 const axios = require("axios");
+const { v4: uuidv4 } = require("uuid");
 
 const PORTS = [3000, 3001];
-const PORT = PORTS[Math.floor(Math.random() * PORTS.length)];
+const PORT = 3000; // PORTS[Math.floor(Math.random() * PORTS.length)];
 const socket = io(`http://localhost:${PORT}`);
 
 console.log("Connecting to port:", PORT);
@@ -17,9 +18,14 @@ socket.on("connect", async () => {
   try {
     const res = await axios.post(`http://localhost:${PORT}/bookings`, {
       user_id: 1,
-      slot_id: Date.now() % 100000,
+      slot_id: 9995, //Date.now() % 100000,
       socketId: socket.id
-    });
+    }, {
+      headers: {
+        "idempotency-key": uuidv4()
+      }
+    }
+  );
 
     console.log("Job created: ", res.data);
   } catch (err) {

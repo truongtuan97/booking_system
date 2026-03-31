@@ -13,4 +13,7 @@ export const AppDataSource = new DataSource({
   synchronize: process.env.NODE_ENV === "development",
   logging: process.env.NODE_ENV === "development",
   entities: [Booking],
+  extra: {
+    max: 50 // CAN INCREASE TO 50 CONNECTIONS
+  }
 });

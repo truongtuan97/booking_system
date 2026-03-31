@@ -4,8 +4,12 @@ import { bookingLimiter } from "../middlewares/ratelimiter.middleware";
 
 const router = Router();
 
-// router.post("/", createBooking);
-router.post("/", bookingLimiter, createBooking);
+if (process.env.NODE_ENV !== "test") {
+    router.post("/", bookingLimiter, createBooking);
+} else {
+    router.post("/", createBooking);
+}
+
 router.get("/", getBookings);
 router.delete("/:id", deleteBooking);
 router.put('/:id', updateBooking);

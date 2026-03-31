@@ -6,6 +6,17 @@ import { AppDataSource } from "../config/database";
 import { getIO } from '../socket';
 import { pubClient } from '../config/redis.pub.sub';
 import { initRedisPubSub } from '../config/redis.pub.sub';
+import { setResult } from '../services/idempotency.service';
+import { incrementFail, incrementSuccess, incrementTotal } from '../utils/batchMetrics';
+
+type JobData = {
+  user_id: number;
+  slot_id: number;
+  batchId: string;
+};
+
+let buffer: JobData[] = [];
+const BATCH_SIZE = 50;
 
 (async () => {
   await AppDataSource.initialize();
@@ -13,14 +24,18 @@ import { initRedisPubSub } from '../config/redis.pub.sub';
 
   await initRedisPubSub(); // 🔥 THÊM DÒNG NÀY
   console.log("✅ Redis Pub/Sub connected in worker");
-  
+
   new Worker(
     "booking",
     async job => {
       console.log("🔥 Job received:", job.name, job.data);
 
       if (job.name === "book-slot") {
-        const { user_id, slot_id, socketId } = job.data;
+        const { user_id, slot_id, socketId, idemKey, batchId } = job.data;
+
+        if (batchId) {
+          await incrementTotal(batchId);
+        }
 
         try {
           console.log("👉 Before calling service");
@@ -28,6 +43,14 @@ import { initRedisPubSub } from '../config/redis.pub.sub';
           const booking = await bookingService.createBooking(slot_id, user_id);
 
           console.log("✅ Booking success:", booking);
+
+          if (batchId) {
+            await incrementSuccess(batchId);
+          }
+
+          if (idemKey) {
+            await setResult(idemKey, booking);
+          }
 
           // 🔥 publish event
           if (socketId) {
@@ -45,6 +68,16 @@ import { initRedisPubSub } from '../config/redis.pub.sub';
         } catch (err: any) {
           console.error("❌ Worker error FULL:", err);
           
+          if (batchId) {
+            await incrementFail(batchId);
+          }
+
+          if (idemKey) {
+            await setResult(idemKey, {
+              error: err.message
+            });
+          }
+
           if (socketId) {
             await pubClient.publish(
               "booking-events",
@@ -62,11 +95,26 @@ import { initRedisPubSub } from '../config/redis.pub.sub';
           }
 
           throw err;
+        } finally {
+          
         }
       }
     },
     { connection: redisQueue,
-      concurrency: 10,
+      concurrency: 200, // KEY POINT TO INCREASE CONCURRENCY
     }
   );
+
+  // const logFinalStats = async () => {
+  //   const completed = await bookingQueue.getCompletedCount();
+  //   const failed = await bookingQueue.getFailedCount();
+
+  //   console.log("FINAL (BullMQ): ", {
+  //     completed,
+  //     failed,
+  //     total: completed + failed
+  //   });
+  // }
+  
+  // setInterval(logFinalStats, 2000);
 })();

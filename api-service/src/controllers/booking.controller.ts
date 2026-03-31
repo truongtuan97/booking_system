@@ -1,20 +1,41 @@
 import { Request, Response } from "express";
 import * as bookingService from "../services/booking.service";
 import { bookingQueue } from "../queues/booking.queue";
-import { getItempotency, setProcessing, setResult } from "../services/idempotency.service";
+import { addSocketToKey, getItempotency, setProcessing, setResult } from "../services/idempotency.service";
+import { pubClient } from "../config/redis.pub.sub";
 
 export const createBooking = async (req: Request, res: Response) => {
   try {
-    const { slot_id, user_id, socketId } = req.body;
+    const { slot_id, user_id, socketId, batchId } = req.body;
     const idemKey = req.headers['idempotency-key'] as string;
 
     if (!idemKey) {
-      return res.status(400).json({ message: "Idempotency key is required" });
+      return res.status(400).json({ message: "Missing Idempotency-Key" });
     }
 
+    // Check
     const existing = await getItempotency(idemKey);
 
     if (existing) {
+      const { socketId} = req.body;
+
+      if (socketId) {
+        await addSocketToKey(idemKey, socketId);
+      }
+
+      // Case 1 da co ket qua emit lai
+      if (existing.status === 'done' && socketId) {
+        await pubClient.publish(
+          "booking-events", 
+          JSON.stringify({
+            socketId,
+            event: existing.result?.error ? "booking-failed" : "booking-success",
+            data: existing.result
+          })
+        );
+      }
+      
+      // Case 2: dang prcessing -> Khong Emit (chow worker)      
       return res.status(200).json({
         message: "Duplicate request",
         data: existing
@@ -24,13 +45,14 @@ export const createBooking = async (req: Request, res: Response) => {
     // MARK proccsesing
     await setProcessing(idemKey);
 
-    const job = await bookingQueue.add("book-slot", { user_id, slot_id, socketId }, {
-      attempts: 3,
-      backoff: {
-        type: "exponential",
-        delay: 1000,
-      }
+    const job = await bookingQueue.add('book-slot', {
+      user_id,
+      slot_id,
+      socketId,
+      idemKey,
+      batchId
     });
+    
     res.status(202).json({ message: "Booking is being processed", jobId: job.id });
   } catch (error) {
     res.status(400).json({ message: (error as Error).message });

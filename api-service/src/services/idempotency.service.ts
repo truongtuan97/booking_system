@@ -24,3 +24,11 @@ export const setResult = async (key: string, result: any) => {
         "EX", 300,
     )
 };
+
+export const addSocketToKey = async (key: string, socketId: string) => {
+    await redisClient.sadd(`idem:${key}:sockets`, socketId);
+};
+
+export const gtSockets = async (key: string) => {
+    return await redisClient.smembers(`idem:${key}:sockets`);
+};
