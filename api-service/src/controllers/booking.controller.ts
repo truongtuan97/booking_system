@@ -3,6 +3,8 @@ import * as bookingService from "../services/booking.service";
 import { bookingQueue } from "../queues/booking.queue";
 import { addSocketToKey, getItempotency, setProcessing, setResult } from "../services/idempotency.service";
 import { pubClient } from "../config/redis.pub.sub";
+import { redisClient } from "../config/redis";
+import { localCache } from "../caches/local.cache";
 
 export const createBooking = async (req: Request, res: Response) => {
   try {
@@ -13,10 +15,10 @@ export const createBooking = async (req: Request, res: Response) => {
       return res.status(400).json({ message: "Missing Idempotency-Key" });
     }
 
-    // Check
-    const existing = await getItempotency(idemKey);
+    // Check idem
+    const existingIdem = await getItempotency(idemKey);
 
-    if (existing) {
+    if (existingIdem) {
       const { socketId} = req.body;
 
       if (socketId) {
@@ -24,13 +26,13 @@ export const createBooking = async (req: Request, res: Response) => {
       }
 
       // Case 1 da co ket qua emit lai
-      if (existing.status === 'done' && socketId) {
+      if (existingIdem.status === 'done' && socketId) {
         await pubClient.publish(
           "booking-events", 
           JSON.stringify({
             socketId,
-            event: existing.result?.error ? "booking-failed" : "booking-success",
-            data: existing.result
+            event: existingIdem.result?.error ? "booking-failed" : "booking-success",
+            data: existingIdem.result
           })
         );
       }
@@ -38,7 +40,31 @@ export const createBooking = async (req: Request, res: Response) => {
       // Case 2: dang prcessing -> Khong Emit (chow worker)      
       return res.status(200).json({
         message: "Duplicate request",
-        data: existing
+        data: existingIdem
+      });
+    }
+
+    // Check slot
+    const start = Date.now();
+    const slotKey = `slot:${slot_id}`;
+    if (localCache.get(slotKey)) {
+      return res.status(400).json({
+        message: "Slot already booked (local cache)"
+      });
+    }
+    const isBooked = await redisClient.get(slotKey);
+    const duration = Date.now() - start;
+
+    if (duration > 5) {
+      console.log(`Redis slow: ${duration}`);
+    }
+
+    if (isBooked) {
+      // update local cache
+      localCache.set(slotKey, true);
+
+      return res.status(400).json({
+        message: "Slot already booked (fast reject)"
       });
     }
 

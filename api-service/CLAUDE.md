@@ -92,3 +92,4 @@ src/
 - `synchronize: true` only when `NODE_ENV !== "production"`; `logging` only when `NODE_ENV === "development"`.
 - TypeORM decorators require `experimentalDecorators`, `emitDecoratorMetadata`, and `useDefineForClassFields: false` in tsconfig — all set.
 - Tests use `@swc/jest` for transformation (not `ts-jest`).
+- Client -> Controller (HTTP) -> Queue (BullMQ) -> Worker -> Buffer (RAM) -> flushBuffer() -> DB (UNIQUE constraint)

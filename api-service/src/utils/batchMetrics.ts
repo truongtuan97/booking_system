@@ -1,11 +1,11 @@
 import { redisClient  } from "../config/redis";
 
-export const incrementSuccess = async (batchId: string) => {
-    await redisClient.incr(`batch:${batchId}:success`);
+export const incrementSuccess = async (batchId: string, successCount: number) => {
+    await redisClient.incrby(`batch:${batchId}:success`, successCount);
 };
 
-export const incrementFail = async (batchId: string) => {
-    await redisClient.incr(`batch:${batchId}:fail`);
+export const incrementFail = async (batchId: string, failedCount: number) => {
+    await redisClient.incrby(`batch:${batchId}:fail`, failedCount);
 };
 
 export const incrementTotal = async (batchId: string) => {

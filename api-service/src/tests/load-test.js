@@ -1,13 +1,13 @@
 const axios = require('axios');
 const { v4: uuidv4 } = require("uuid");
 
-const TOTAL_REQUESTS = 20000;
+const TOTAL_REQUESTS = 100000;
 var SLOT_ID = 0; // Date.now() % 100000;
 const URL = "http://localhost:3000/bookings";
 
 const PORT = 3000;
 const batchId = 'test-' + Date.now();
-const BATCH_SIZE = 100;
+const BATCH_SIZE = 1000;
 
 async function sendRequest(i) {
   try {
@@ -53,11 +53,23 @@ async function runTest() {
 
   console.log("📊 REQUEST RESULT:", stats);
   console.log("End: ", Date.now());
-
-  setTimeout(async () => {
-    const res = await axios.get(`http://localhost:3000/batches/${batchId}`);
-    console.log("📊 FINAL BATCH RESULT:", res.data);
-  }, 5000);
 }
 
-runTest();
+async function waitForDone() {
+  while(true) {
+    const res = await axios.get(`http://localhost:3000/batches/${batchId}`);
+    console.log("WAITING:", res.data);
+
+    if (res.data.processing === 0) {
+      console.log("DONE:", res.data);
+      break;
+    }
+
+    await new Promise(r => setTimeout(r, 1000));
+  }
+}
+
+(async () => {
+  await runTest();
+  await waitForDone();
+})(); 

@@ -14,6 +14,18 @@ const releaseLock = async (lockKey: string, lockValue: string) => {
   return await redisClient.eval(luaScript, 1, lockKey, lockValue);
 };
 
+export const prepareBooking = (slot_id: number, user_id: number) => {
+  if (!slot_id || !user_id) {
+    throw new Error("Invalid booking data");
+  }
+
+  return {
+    slot_id,
+    user_id,
+    created_at: new Date()
+  };
+};
+
 export const createBooking = async (slot_id: number, user_id: number): Promise<Booking> => {
   const lockKey = `lock:slot:${slot_id}`;
   const lockValue = `${user_id}-${Date.now()}`;
@@ -26,7 +38,7 @@ export const createBooking = async (slot_id: number, user_id: number): Promise<B
 
   try {
     const booking = bookingRepository.create({ slot_id, user_id });
-    return await bookingRepository.save(booking);
+    return await bookingRepository.save(booking);    
   } catch (error) {
     if (error instanceof QueryFailedError && (error as any).code === '23505') {
       throw new Error('Slot already booked');
