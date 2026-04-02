@@ -84,6 +84,81 @@ src/
 
 **Redis usage:** Three separate client instances — general (`redisClient`), BullMQ (`redisQueue` with `maxRetriesPerRequest: null`), and pub/sub (`pubClient`/`subClient`). Redis is hardcoded to `localhost:6379` (no env var).
 
+## Metrics
+
+The system exposes Prometheus metrics from two separate processes:
+
+| Process | Port | Endpoint |
+|---------|------|----------|
+| API server | 3000 | `GET /metrics` |
+| Worker | 9091 | `GET /metrics` |
+
+**Why two endpoints?** The API server and worker are separate Node.js processes with separate in-memory prom-client registries. Worker-side metrics (DB latency, Redis latency, queue backlog) are only visible on port 9091.
+
+### Metrics exposed
+
+| Metric | Type | Where observed |
+|--------|------|----------------|
+| `queue_backlog` | Gauge | Worker — total waiting + active BullMQ jobs |
+| `db_latency_ms` | Histogram | Worker — bulk INSERT duration per batch flush |
+| `redis_latency_ms` | Histogram | Worker — Redis INCRBY/GET latency in `batchMetrics` |
+| Default Node.js metrics (CPU, memory, event loop) | various | Both processes |
+
+### Start monitoring stack
+
+```bash
+# 1. Create the shared Docker network (one-time)
+docker network create booking_network
+
+# 2. Start PostgreSQL and Redis (from ../booking_system/)
+docker-compose up -d
+
+# 3. Start Prometheus + Grafana (from ../booking_system/)
+docker-compose -f docker-compose.monitoring.yml up -d
+```
+
+### View metrics
+
+- **Raw metrics (API server):** http://localhost:3000/metrics
+- **Raw metrics (worker):** http://localhost:9091/metrics
+- **Prometheus UI:** http://localhost:9000 — use the Graph tab to query metrics
+- **Grafana:** http://localhost:3001 — default credentials `admin / admin`
+
+### Grafana setup (first time)
+
+1. Open http://localhost:3001 and log in
+2. Go to **Connections → Data sources → Add new**
+3. Choose **Prometheus**, set URL to `http://prometheus:9090`, click **Save & test**
+4. Import a dashboard or create panels with PromQL queries:
+
+```promql
+# Queue backlog over time
+queue_backlog
+
+# 95th-percentile DB latency
+histogram_quantile(0.95, rate(db_latency_ms_bucket[1m]))
+
+# 95th-percentile Redis latency
+histogram_quantile(0.95, rate(redis_latency_ms_bucket[1m]))
+
+# DB latency average rate
+rate(db_latency_ms_sum[1m]) / rate(db_latency_ms_count[1m])
+```
+
+### Testing metrics manually
+
+```bash
+# Fire load test (generates bookings that drive metric observations)
+node src/tests/load-test.js
+
+# Check raw metric values
+curl http://localhost:9091/metrics | grep -E 'db_latency|redis_latency|queue_backlog'
+```
+
+### Changing the worker metrics port
+
+Set `WORKER_METRICS_PORT` in `.env`. Also update `monitoring/prometheus.yml` target accordingly.
+
 ## Core Constraints
 
 - `server.ts` is the only file that calls `AppDataSource.initialize()` — all other layers import the DataSource and rely on it being already initialized.

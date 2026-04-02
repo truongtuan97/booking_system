@@ -8,6 +8,7 @@ import { localCache } from "../caches/local.cache";
 
 export const createBooking = async (req: Request, res: Response) => {
   try {
+
     const { slot_id, user_id, socketId, batchId } = req.body;
     const idemKey = req.headers['idempotency-key'] as string;
 

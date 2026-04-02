@@ -1,13 +1,15 @@
-import { Worker } from 'bullmq';
+import { Worker, Queue } from 'bullmq';
 import { redisClient, redisQueue } from "./../config/redis";
 import * as bookingService from "../services/booking.service";
+import http from 'http';
 
 import { AppDataSource } from "../config/database";
-import { getIO } from '../socket';
 import { pubClient } from '../config/redis.pub.sub';
 import { initRedisPubSub } from '../config/redis.pub.sub';
 import { setResult } from '../services/idempotency.service';
 import { incrementFail, incrementSuccess, incrementTotal } from '../utils/batchMetrics';
+import { dbLatencyHistogram, queueBacklogGauge, register } from "../metrics/metrics";
+import { bookingQueue } from '../queues/booking.queue';
 
 type BufferItem = {
   slot_id: number;
@@ -39,7 +41,7 @@ let isFlushing = false;
         if (batchId) {
           await incrementTotal(batchId);
         }
-        
+
         try {
           console.log("👉 Before calling service");
 
@@ -104,7 +106,7 @@ let isFlushing = false;
 
           throw err;
         } finally {
-
+          
         }
       }
     },
@@ -145,6 +147,7 @@ let isFlushing = false;
       return !value;
     });
     
+    const start = Date.now();
     // INSERT DB BULK
     const insertResult = await AppDataSource
       .createQueryBuilder()
@@ -157,6 +160,9 @@ let isFlushing = false;
       .orIgnore()
       .returning("*")
       .execute();
+
+    const duration = Date.now() - start;
+    dbLatencyHistogram.observe(duration);
 
     const successRows = insertResult.raw || [];
     const successSet = new Set(
@@ -247,3 +253,25 @@ let isFlushing = false;
   }, 200);
 
 })();
+
+setInterval(async () => {
+  const waiting = await bookingQueue.getWaitingCount();
+  const active = await bookingQueue.getActiveCount();
+
+  queueBacklogGauge.set(waiting + active);
+}, 1000);
+
+// Expose worker metrics on a separate port so Prometheus can scrape them.
+// The API server runs on :3000 with its own /metrics; the worker runs on :9091.
+const WORKER_METRICS_PORT = Number(process.env.WORKER_METRICS_PORT) || 9091;
+http.createServer(async (req, res) => {
+  if (req.url === '/metrics' && req.method === 'GET') {
+    res.setHeader('Content-Type', register.contentType);
+    res.end(await register.metrics());
+  } else {
+    res.writeHead(404);
+    res.end('Not found');
+  }
+}).listen(WORKER_METRICS_PORT, () => {
+  console.log(`Worker metrics available at http://localhost:${WORKER_METRICS_PORT}/metrics`);
+});

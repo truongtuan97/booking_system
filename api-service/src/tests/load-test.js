@@ -1,11 +1,11 @@
 const axios = require('axios');
 const { v4: uuidv4 } = require("uuid");
 
-const TOTAL_REQUESTS = 100000;
+const TOTAL_REQUESTS = 20000;
 var SLOT_ID = 0; // Date.now() % 100000;
-const URL = "http://localhost:3000/bookings";
+const PORT = process.env.PORT || 3000;
+const URL = `http://localhost:${PORT}/bookings`;
 
-const PORT = 3000;
 const batchId = 'test-' + Date.now();
 const BATCH_SIZE = 1000;
 

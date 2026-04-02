@@ -1,24 +1,11 @@
 import { Request, Response, Router } from "express";
-import { bookingQueue } from "../queues/booking.queue";
+import { register } from "../metrics/metrics";
 
 const router = Router();
 
 router.get("/metrics", async (req: Request, res: Response) => {
-    const [waiting, active, completed, failed] = await Promise.all([
-        bookingQueue.getWaitingCount(),
-        bookingQueue.getActiveCount(),
-        bookingQueue.getCompletedCount(),
-        bookingQueue.getFailed(),
-    ]);
-
-    res.json({
-        queue: {
-            waiting,
-            active,
-            completed,
-            failed
-        },timestamp: Date.now()
-    });
+    res.set("Content-Type", register.contentType);
+    res.end(await register.metrics());
 });
 
 export default router;

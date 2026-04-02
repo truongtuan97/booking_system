@@ -7,7 +7,7 @@ const axios = require("axios");
 const { v4: uuidv4 } = require("uuid");
 
 const PORTS = [3000, 3001];
-const PORT = 3000; // PORTS[Math.floor(Math.random() * PORTS.length)];
+const PORT = process.env.PORT || 3000; // PORTS[Math.floor(Math.random() * PORTS.length)];
 const socket = io(`http://localhost:${PORT}`);
 
 console.log("Connecting to port:", PORT);
